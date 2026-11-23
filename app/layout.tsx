@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Wholesale DSCR Desk",
-  description: "Compare wholesale multifamily and mixed-use DSCR programs and track your lender quotes.",
+  description: "Compare wholesale, bank, private capital and institutional financing for multifamily or mixed-use, and track broker quotes.",
   icons: { icon: "/favicon.svg" },
 };
 

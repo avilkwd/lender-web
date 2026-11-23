@@ -4,6 +4,9 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { bffRateSheet, lenders, researchDate } from "./lenders";
 import type { Lender } from "./lenders";
+import { communityNotes, priceNotes } from "./research-data";
+import { accessTypes, fundingRoles, programGroups } from "./research-types";
+import type { UnitRange } from "./research-types";
 import { blankQuote } from "./quote";
 import type { Quote, QuoteFields } from "./quote";
 
@@ -12,8 +15,9 @@ const dateDisplay = new Intl.DateTimeFormat("en-US", { month: "short", day: "num
 const lenderById = new Map(lenders.map((lender) => [lender.id, lender]));
 const asDollars = (value: string) => value ? usDollars.format(Number(value)) : "";
 const showDate = (value: string) => value ? dateDisplay.format(new Date(value + "T00:00:00Z")) : "";
-const rangeMatches = (count: number, minimum: number, maximum: number | null) =>
-  count >= minimum && (maximum === null || count <= maximum);
+const rangeMatches = (count: number, range?: UnitRange) =>
+  !!range && count >= range.min && (range.max === undefined || count <= range.max);
+const directoryPageSize = 24;
 
 function External({ href, children }: { href: string; children: ReactNode }) {
   return <a className="source-link" href={href} target="_blank" rel="noreferrer">{children}</a>;
@@ -26,38 +30,70 @@ function Value({ children }: { children: ReactNode }) {
 function LenderDetails({ lender, onQuote }: { lender: Lender; onQuote: (lenderId: string) => void }) {
   return <div className="details-grid">
     <section>
-      <h3>Eligibility & overlays</h3>
+      <h3>Funding & broker access</h3>
+      <p>{lender.fundingEvidence}</p>
+      <p className="detail-line"><strong>{lender.access}.</strong> {lender.accessDetails}</p>
+      {lender.coverage && <p className="detail-line"><strong>Coverage.</strong> {lender.coverage}</p>}
+    </section>
+    <section>
+      <h3>Program & overlays</h3>
       <p>{lender.overlays}</p>
+      {(lender.fico || lender.dscr) && <p className="detail-line">{[
+        lender.fico && "Published minimum FICO " + lender.fico,
+        lender.dscr && "Published minimum DSCR " + lender.dscr,
+      ].filter(Boolean).join(" · ")}</p>}
       <div className="sources">
-        <External href={lender.program}>Broker program</External>
+        <External href={lender.program}>Program / company</External>
         {lender.matrix && <External href={lender.matrix}>Program guidelines</External>}
         {lender.id === "ad" && <External href="https://admortgage.com/wp-content/uploads/DSCR_Mixed-Use_AD_Products-5.pdf">Mixed-use guidelines</External>}
         {lender.pricing && <External href={lender.pricing}>Pricing source</External>}
+        {lender.sources?.map((source) => <External key={source.url + source.label} href={source.url}>{source.label}</External>)}
       </div>
     </section>
-    <section>
+    <section className="detail-review">
       <h3>Review evidence</h3>
-      <p>{lender.review}</p>
+      <p>{lender.review || "No program-specific firsthand review verified in this research."}</p>
       <div className="sources">{lender.reviewSources?.map((source) => <External href={source.url} key={source.url}>{source.label}</External>)}</div>
+      <button className="button secondary detail-action" onClick={() => onQuote(lender.id)}>Log a quote</button>
     </section>
-    <button className="button secondary detail-action" onClick={() => onQuote(lender.id)}>Log a quote</button>
   </div>;
 }
 
+const filtersDefault = { search: "", group: "", role: "", access: "", property: "", units: "" };
+type DirectoryFilters = typeof filtersDefault;
+const roleGuide = [
+  ["Direct lender", "Publishes its own lending program and describes direct origination or funding. A loan may be sold after closing."],
+  ["Bank / credit union", "The depository institution offers commercial lending. Broker access varies by program."],
+  ["Agency originator", "An approved lender can underwrite and close an agency execution. Agency or investor capital may take out the loan."],
+  ["Lends and places deals", "May fund some deals and arrange others. Check the entity named in the term sheet."],
+  ["Broker / marketplace", "Shops, matches, or places a deal with third-party capital. The funding source is deal-specific."],
+  ["Direct claim unverified", "The provider markets itself as direct. Corroboration of the funding entity was limited or conflicting."],
+];
+
 function Directory({ onQuote }: { onQuote: (lenderId: string) => void }) {
-  const [search, setSearch] = useState("");
-  const [property, setProperty] = useState("all");
-  const [units, setUnits] = useState("");
+  const [filters, setFilters] = useState<DirectoryFilters>(filtersDefault);
   const [expanded, setExpanded] = useState(new Set<string>());
-  const term = search.trim().toLowerCase();
+  const [page, setPage] = useState(0);
+  const term = filters.search.trim().toLowerCase();
   const matches = lenders.filter((lender) => {
-    if (term && ![lender.name, lender.channel, lender.overlays].some((text) => text.toLowerCase().includes(term))) return false;
-    if (!units) return true;
-    const count = Number(units);
-    const multifamily = rangeMatches(count, 5, lender.multifamilyMax);
-    const mixed = lender.mixedMax !== null && rangeMatches(count, 2, lender.mixedMax);
-    return (property !== "mixed" && multifamily) || (property !== "multifamily" && mixed);
+    if (term && ![lender.name, lender.channel, lender.overlays, lender.coverage, lender.fundingEvidence].some((text) => text?.toLowerCase().includes(term))) return false;
+    if (filters.group && lender.group !== filters.group) return false;
+    if (filters.role && lender.role !== filters.role) return false;
+    if (filters.access && lender.access !== filters.access) return false;
+    const count = filters.units ? Number(filters.units) : null;
+    const multifamily = !!lender.multifamily && (count === null || rangeMatches(count, lender.multifamilyRange));
+    const mixed = !!lender.mixed && (count === null || rangeMatches(count, lender.mixedRange));
+    return filters.property === "both" ? multifamily && mixed :
+      filters.property === "multifamily" ? multifamily :
+      filters.property === "mixed" ? mixed : count === null || multifamily || mixed;
   });
+  const start = page * directoryPageSize;
+  const visible = matches.slice(start, start + directoryPageSize);
+
+  function updateFilter(key: keyof DirectoryFilters, value: string) {
+    setFilters((current) => ({ ...current, [key]: value }));
+    setPage(0);
+  }
 
   function toggle(id: string) {
     setExpanded((previous) => {
@@ -68,76 +104,113 @@ function Directory({ onQuote }: { onQuote: (lenderId: string) => void }) {
     });
   }
 
+  function picker(key: "group" | "role" | "access", label: string, options: readonly string[]) {
+    return <label className="filter-field"><span>{label}</span>
+      <select value={filters[key]} onChange={(event) => updateFilter(key, event.target.value)}>
+        <option value="">All</option>{options.map((value) => <option key={value}>{value}</option>)}
+      </select>
+    </label>;
+  }
+
   return <>
     <section className="research-hero" aria-labelledby="directory-title">
       <div className="hero-copy">
-        <span className="eyebrow">Wholesale lender directory</span>
-        <h1 id="directory-title">Multifamily &amp;<br className="hero-break"/> mixed-use DSCR</h1>
-        <p>Compare 5+ unit programs, check overlays, and log broker quotes for the same deal.</p>
+        <span className="eyebrow">Commercial financing directory</span>
+        <h1 id="directory-title">Multifamily &amp;<br className="hero-break"/> mixed-use lending</h1>
+        <p>Find funding for 5+ unit properties, check who originates the loan and compare broker access.</p>
       </div>
       <div className="rate-panel">
-        <h2>Published starting rates</h2>
+        <h2>Program coverage</h2>
         <dl className="rate-list">
-          <div><dt>Maverick Lending NYC</dt><dd>6.99<span>%</span></dd></div>
-          <div><dt>IceCap / BluFin</dt><dd>7.25<span>%</span></dd></div>
+          <div><dt>Lenders, originators and intermediaries</dt><dd>{lenders.length}</dd></div>
+          <div><dt>Published wholesale or commercial broker access</dt><dd>{lenders.filter((lender) => lender.access === "Wholesale / TPO" || lender.access === "Commercial broker access").length}</dd></div>
         </dl>
-        <p>Advertised for these property types. Confirm wholesale points, prepay, and leverage.</p>
+        <p>Open a listing for primary sources, eligibility and any firsthand feedback.</p>
       </div>
     </section>
 
     <section aria-labelledby="comparison-title" className="main-section">
       <div className="section-heading">
         <div>
-          <h2 id="comparison-title">Compare lenders</h2>
-          <p>Open a lender to see overlays, review evidence, and pricing sources.</p>
+          <h2 id="comparison-title">Compare financing sources</h2>
+          <p>Filter by funding role, broker access and property type.</p>
         </div>
         <span className="section-comment">Research as of {researchDate}</span>
       </div>
       <div className="sheet">
-        <div className="toolbar">
-          <label className="search-field"><span className="search-icon" aria-hidden="true"></span><span className="sr-only">Search lenders or overlays</span>
-            <input type="search" placeholder="Search lenders or overlays" value={search} onChange={(event) => setSearch(event.target.value)} />
+        <div className="toolbar directory-toolbar">
+          <label className="search-field"><span className="search-icon" aria-hidden="true"></span><span className="sr-only">Search providers, geography or overlays</span>
+            <input type="search" placeholder="Search providers, geography or overlays" value={filters.search} onChange={(event) => updateFilter("search", event.target.value)} />
           </label>
-          <label className="filter-field"><span>Property</span><select value={property} onChange={(event) => setProperty(event.target.value)}>
-            <option value="all">All types</option><option value="multifamily">Multifamily</option><option value="mixed">Mixed-use</option>
+          {picker("group", "Program", programGroups)}
+          {picker("role", "Funding role", fundingRoles)}
+          {picker("access", "Broker access", accessTypes)}
+          <label className="filter-field"><span>Property</span><select value={filters.property} onChange={(event) => updateFilter("property", event.target.value)}>
+            <option value="">All types</option><option value="multifamily">Multifamily</option><option value="mixed">Mixed-use</option><option value="both">Both programs</option>
           </select></label>
-          <label className="filter-field"><span>Units</span><input type="number" min="2" step="1" placeholder="Any" value={units} onChange={(event) => setUnits(event.target.value)} /></label>
-          <span className="result-count" aria-live="polite">{matches.length} of {lenders.length} lenders</span>
-          {units && property !== "multifamily" && <span className="filter-note">Mixed-use programs with unpublished unit limits are excluded from unit-count results.</span>}
+          <label className="filter-field"><span>Units</span><input type="number" min="2" step="1" placeholder="Any" value={filters.units} onChange={(event) => updateFilter("units", event.target.value)} /></label>
+          <span className="result-count" aria-live="polite">{matches.length} of {lenders.length} listings</span>
+          {filters.units && <span className="filter-note">Unit-count results require a published unit range or minimum. Check the listing for transaction-specific limits.</span>}
         </div>
-        <div className="table-scroll" tabIndex={0} role="region" aria-label="Wholesale lender comparison">
-          <table>
-            <thead><tr><th scope="col">Lender</th><th scope="col">Multifamily</th><th scope="col">Mixed-use</th><th scope="col">Min. loan</th><th scope="col">Min. FICO</th><th scope="col">Min. DSCR</th><th scope="col">Public pricing</th></tr></thead>
+        <div className="table-scroll" tabIndex={0} role="region" aria-label="Commercial financing comparison">
+          <table className="research-table">
+            <thead><tr><th scope="col">Provider</th><th scope="col">Funding role</th><th scope="col">Broker access</th><th scope="col">Multifamily</th><th scope="col">Mixed-use</th><th scope="col">Loan size</th><th scope="col">Public pricing</th></tr></thead>
             <tbody>
-            {matches.map((lender) => <Fragment key={lender.id}>
+            {visible.map((lender) => <Fragment key={lender.id}>
               <tr className={expanded.has(lender.id) ? "expanded" : ""}>
-                <th scope="row"><div className="lender-cell"><span className="monogram" aria-hidden="true">{lender.initials}</span><div><External href={lender.program}>{lender.name}</External><small>{lender.channel}</small></div><button className="disclosure" type="button" aria-label={(expanded.has(lender.id) ? "Hide " : "Show ") + lender.name + " details"} aria-expanded={expanded.has(lender.id)} onClick={() => toggle(lender.id)}>{expanded.has(lender.id) ? "−" : "+"}</button></div></th>
-                <td>{lender.multifamily} units</td><td>{lender.mixed}{lender.mixedMax !== null ? " units" : ""}</td>
-                <td><Value>{lender.minimumAmount}</Value></td><td><Value>{lender.fico}</Value></td><td><Value>{lender.dscr}</Value></td>
+                <th scope="row"><div className="lender-cell"><span className="monogram" aria-hidden="true">{lender.initials}</span><div><External href={lender.program}>{lender.name}</External><small>{lender.group}</small></div><button className="disclosure" type="button" aria-label={(expanded.has(lender.id) ? "Hide " : "Show ") + lender.name + " details"} aria-expanded={expanded.has(lender.id)} onClick={() => toggle(lender.id)}>{expanded.has(lender.id) ? "−" : "+"}</button></div></th>
+                <td>{lender.role}</td><td>{lender.access}</td>
+                <td><Value>{lender.multifamily}</Value></td><td><Value>{lender.mixed}</Value></td>
+                <td><Value>{lender.loanSize || (lender.minimumAmount && lender.minimumAmount + " min.")}</Value></td>
                 <td>{lender.price ? <><strong className="rate-cell">{lender.price}</strong><small>{lender.priceType}</small></> : <Value>{""}</Value>}</td>
-                
               </tr>
               {expanded.has(lender.id) && <tr className="lender-details"><td colSpan={7}><LenderDetails lender={lender} onQuote={onQuote}/></td></tr>}
             </Fragment>)}
             </tbody>
           </table>
         </div>
-        {matches.length === 0 && <p className="empty-inline">No lenders match those filters. <button className="link-button" onClick={() => { setSearch(""); setProperty("all"); setUnits(""); }}>Clear filters</button></p>}
+        {matches.length === 0 && <p className="empty-inline">No providers match those filters. <button className="link-button" onClick={() => { setFilters(filtersDefault); setPage(0); }}>Clear filters</button></p>}
+        {matches.length > directoryPageSize && <div className="directory-pages" aria-label="Directory pages">
+          <span>{start + 1}–{Math.min(start + directoryPageSize, matches.length)} of {matches.length}</span>
+          <button className="button secondary" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</button>
+          <button className="button secondary" disabled={start + directoryPageSize >= matches.length} onClick={() => setPage(page + 1)}>Next</button>
+        </div>}
       </div>
-      <p className="table-note">A dash means the value was unverified or unpublished. Published minimums and maximums apply at different pricing tiers.</p>
+      <p className="table-note">A dash means eligibility or terms were unverified, unpublished or unavailable for that program.</p>
+      <details className="research-method">
+        <summary>Funding roles and evidence</summary>
+        <dl>{roleGuide.map(([role, definition]) => <div key={role}><dt>{role}</dt><dd>{definition}</dd></div>)}</dl>
+      </details>
     </section>
 
-    <section className="benchmark" aria-labelledby="benchmark-title">
-      <div>
-        <span className="eyebrow">November 23, 2026 rate sheet</span>
-        <h2 id="benchmark-title">Brokers First Funding benchmark</h2>
-        <p>$750K purchase · 70% LTV · 740 FICO · 1.25× DSCR · 30-year fixed · three-year prepay</p>
-        <External href={bffRateSheet}>View wholesale rate sheet, page 11</External>
+    <section className="main-section" aria-labelledby="pricing-title">
+      <div className="section-heading"><div><h2 id="pricing-title">Published pricing & recorded deals</h2><p>Rates below come with different loan sizes, terms and prepay structures. Use the quote tracker for matched scenarios.</p></div></div>
+      <div className="evidence-grid">
+        {priceNotes.map((note) => <article key={note.name + note.rate} className="evidence-card">
+          <h3>{note.name}</h3><strong className="evidence-rate">{note.rate}</strong><p>{note.terms}</p><External href={note.source.url}>{note.source.label}</External>
+        </article>)}
       </div>
-      <div className="benchmark-prices">
-        <div><span>Multifamily</span><strong>9.125%</strong><span>0.125 points</span></div>
-        <div><span>Mixed-use</span><strong>9.125%</strong><span>0.625 points</span></div>
-        <p>$1,995 lender fee either way. Broker compensation and third-party costs are additional.</p>
+      <div className="benchmark">
+        <div>
+          <span className="eyebrow">November 23, 2026 rate sheet</span>
+          <h2>Brokers First Funding benchmark</h2>
+          <p>$750K purchase · 70% LTV · 740 FICO · 1.25× DSCR · 30-year fixed · three-year prepay</p>
+          <External href={bffRateSheet}>View wholesale rate sheet, page 11</External>
+        </div>
+        <div className="benchmark-prices">
+          <div><span>Multifamily</span><strong>9.125%</strong><span>0.125 points</span></div>
+          <div><span>Mixed-use</span><strong>9.125%</strong><span>0.625 points</span></div>
+          <p>$1,995 lender fee either way. Broker compensation and third-party costs are additional.</p>
+        </div>
+      </div>
+    </section>
+
+    <section className="main-section" aria-labelledby="community-title">
+      <div className="section-heading"><div><h2 id="community-title">Forum and social evidence</h2><p>User-reported experiences and company announcements carry different weight.</p></div></div>
+      <div className="evidence-grid">
+        {communityNotes.map((note) => <article key={note.title} className="evidence-card">
+          <span className="evidence-kind">{note.kind}</span><h3>{note.title}</h3><p>{note.text}</p><External href={note.source.url}>{note.source.label}</External>
+        </article>)}
       </div>
     </section>
   </>;
@@ -241,13 +314,13 @@ function QuoteDialog({ form, id, onClose, onSave }: {
 
   return <dialog className="quote-dialog" ref={dialog} aria-labelledby="dialog-title" onCancel={(event) => { event.preventDefault(); if (!saving) onClose(); }}>
     <form onSubmit={submit}>
-      <header className="dialog-header"><div><h2 id="dialog-title">{id ? "Edit quote" : "Log a quote"}</h2><p>Only the lender and scenario name are required.</p></div>
+      <header className="dialog-header"><div><h2 id="dialog-title">{id ? "Edit quote" : "Log a quote"}</h2><p>Only the quote source and scenario name are required.</p></div>
         <button className="disclosure" disabled={saving} type="button" aria-label="Close quote form" onClick={onClose}>×</button>
       </header>
       <div className="dialog-body">
         <fieldset><legend>Scenario</legend><div className="form-grid">
           {field("scenario", "Scenario name", { required: true, maxLength: 100, placeholder: "Example: Newark 6-unit purchase", autoFocus: true })}
-          <label className="field"><span>Lender</span><select name="lenderId" defaultValue={form.lenderId} required><option value="">Choose lender</option>{lenders.map((lender) => <option key={lender.id} value={lender.id}>{lender.name}</option>)}</select></label>
+          <label className="field"><span>Quote source</span><select name="lenderId" defaultValue={form.lenderId} required><option value="">Choose a provider</option>{lenders.map((lender) => <option key={lender.id} value={lender.id}>{lender.name}</option>)}</select></label>
           <label className="field"><span>Property type</span><select name="property" defaultValue={form.property}><option value="">Select if known</option><option>Multifamily</option><option>Mixed-use</option></select></label>
           {number("units", "Units", 1, 10000, "1")}
           {number("amount", "Loan amount ($)", 1, 1e9, "0.01")}

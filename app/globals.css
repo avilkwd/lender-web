@@ -169,3 +169,32 @@ legend { font-weight: 740; margin-bottom: 8px; padding: 0; color: var(--accent);
   .details-grid { width: calc(100vw - 34px); grid-template-columns: 1fr; gap: 11px; padding-inline: 14px; }
   .detail-action { justify-self: start; }
 }
+.directory-toolbar .search-field { width: min(330px, 100%); }
+.research-table { min-width: 1110px; }
+.research-table td { min-width: 100px; }
+.research-table td:nth-child(2), .research-table td:nth-child(3) { min-width: 130px; }
+.research-table td:last-child { min-width: 130px; }
+.details-grid { grid-template-columns: 1.04fr 1.24fr .86fr; }
+.details-grid .detail-line { margin-top: 8px; }
+.detail-review .detail-action { margin-top: 12px; }
+.directory-pages { border-top: 1px solid var(--line); padding: 12px 17px; display: flex; align-items: center; justify-content: flex-end; gap: 9px; }
+.directory-pages span { color: var(--muted); font-size: .9rem; margin-right: 5px; }
+.directory-pages button:disabled { cursor: default; }
+.research-method { padding-top: 10px; color: var(--muted); font-size: .9rem; }
+.research-method summary { color: var(--accent); cursor: pointer; font-weight: 680; }
+.research-method dl { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px 22px; padding: 15px; background: white; border: 1px solid var(--line); border-radius: 7px; }
+.research-method dt { color: var(--ink); font-weight: 680; }
+.evidence-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
+.evidence-card { padding: 15px 18px; background: white; border: 1px solid var(--line); border-radius: 8px; }
+.evidence-card h3 { font-size: 1rem; }
+.evidence-card p { margin: 5px 0 8px; color: var(--muted); font-size: .9rem; }
+.evidence-card .source-link, .evidence-kind { font-size: .88rem; }
+.evidence-kind { color: var(--accent); font-weight: 650; display: block; margin-bottom: 4px; }
+.evidence-rate { display: block; color: var(--accent); font-size: 1.35rem; margin-top: 3px; }
+@media (max-width: 920px) {
+  .evidence-grid, .research-method dl { grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+@media (max-width: 730px) {
+  .directory-toolbar .search-field { width: 100%; }
+  .details-grid, .evidence-grid, .research-method dl { grid-template-columns: 1fr; }
+}

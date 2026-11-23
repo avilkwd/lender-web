@@ -1,3 +1,6 @@
+import { additions } from "./research-data";
+import type { AccessType, EvidenceLink, FundingRole, ProgramGroup, UnitRange } from "./research-types";
+
 export type Lender = {
   id: string;
   name: string;
@@ -17,7 +20,17 @@ export type Lender = {
   priceType?: string;
   overlays: string;
   review: string;
-  reviewSources?: { label: string; url: string }[];
+  reviewSources?: EvidenceLink[];
+  role: FundingRole;
+  group: ProgramGroup;
+  access: AccessType;
+  accessDetails?: string;
+  fundingEvidence: string;
+  coverage?: string;
+  sources?: EvidenceLink[];
+  multifamilyRange?: UnitRange;
+  mixedRange?: UnitRange;
+  loanSize?: string;
 };
 
 const nyNj = "New York is excluded on this program. New Jersey requires 720 FICO and caps LTV at 70% on purchases and 65% on refinances.";
@@ -25,7 +38,7 @@ const nyNj = "New York is excluded on this program. New Jersey requires 720 FICO
 export const researchDate = "November 23, 2026";
 export const bffRateSheet = "https://www.bffws.com/api/media/file/Non-QM%20Rate%20Sheet%2011232026.pdf";
 
-export const lenders: Lender[] = [
+const initialLenders: Omit<Lender, "role" | "group" | "access" | "fundingEvidence">[] = [
   {
     id: "maverick", name: "Maverick Lending NYC", initials: "M", channel: "Broker program",
     program: "https://www.mavericklendingnyc.com/broker-program",
@@ -127,4 +140,111 @@ export const lenders: Lender[] = [
     review: "BBB reviewers report some servicing and fee issues. Firsthand feedback specific to wholesale closings was limited.",
     reviewSources: [{label:"BBB customer reviews", url:"https://www.bbb.org/us/ca/westlake-village/profile/loans/velocity-mortgage-capital-1236-2000079/customer-reviews"}],
   },
+];
+
+const originalEvidence: Record<string, Pick<Lender, "role" | "group" | "access" | "fundingEvidence" | "sources" | "coverage" | "reviewSources"> & { review?: string }> = {
+  maverick: {
+    role: "Direct claim unverified", group: "Private capital", access: "Commercial broker access",
+    fundingEvidence: "The company describes itself as a direct private lender and markets a broker program. Independent evidence of who funds or is named on these notes was limited. Ask for the lender of record before relying on the advertised terms.",
+    coverage: "NYC-based. Program geography unverified.",
+    sources: [{ label: "Company statement", url: "https://www.mavericklendingnyc.com/" }, { label: "Company LinkedIn", url: "https://www.linkedin.com/company/maverick-lending-nyc/" }],
+  },
+  blufin: {
+    role: "Direct lender", group: "Wholesale DSCR / Non-QM", access: "Wholesale / TPO",
+    fundingEvidence: "BluFin is the wholesale lending division of Ice Lender Holdings / IceCap Group. IceCap describes separate direct, wholesale and referral channels.",
+    sources: [{ label: "Lender channel FAQ", url: "https://icecapgroup.com/faq/" }, { label: "BluFin LinkedIn", url: "https://www.linkedin.com/company/blufin-group" }],
+  },
+  quontic: {
+    role: "Bank / credit union", group: "Wholesale DSCR / Non-QM", access: "Wholesale / TPO",
+    fundingEvidence: "Quontic Bank publishes a lender matrix and runs a dedicated wholesale mixed-use and multifamily scenario desk.",
+    coverage: "State and licensing overlays apply.",
+    sources: [{ label: "Quontic bank site", url: "https://www.quontic.com/mortgages/non-traditional-loans/dscr-mixed-use-multi-family/" }],
+  },
+  ad: {
+    role: "Direct lender", group: "Wholesale DSCR / Non-QM", access: "Wholesale / TPO",
+    fundingEvidence: "AD Mortgage publishes its own wholesale product guidelines under the mortgage lender entity A&D Mortgage LLC.",
+    coverage: "Program excludes AK, IL and NY. NJ overlays apply.",
+    sources: [{ label: "Wholesale partner support", url: "https://admortgage.com/partner-support/" }],
+  },
+  thelender: {
+    role: "Direct lender", group: "Wholesale DSCR / Non-QM", access: "Wholesale / TPO",
+    fundingEvidence: "theLender publishes the NONI58 wholesale eligibility and pricing under Hometown Equity Mortgage, LLC.",
+    sources: [{ label: "Wholesale channel", url: "https://wholesale.thelender.com/" }],
+  },
+  bff: {
+    role: "Direct lender", group: "Wholesale DSCR / Non-QM", access: "Wholesale / TPO",
+    fundingEvidence: "Brokers First Funding identifies itself as FlexPoint, Inc. and operates a wholesale-only mortgage channel with lender-issued rate sheets.",
+    coverage: "Program excludes NY, IL, and certain NJ, PA and MD locations.",
+    review: "A Reddit mortgage originator reported that BFF closed their eight-unit file quickly. Lender-published testimonies also describe on-time closings.",
+    reviewSources: [{ label: "Reddit originator report", url: "https://www.reddit.com/r/loanoriginators/comments/1r2jvlm/5_unit/" }, { label: "Lender testimonials", url: "https://www.bffws.com/" }],
+  },
+  verus: {
+    role: "Direct lender", group: "Wholesale DSCR / Non-QM", access: "Wholesale / TPO",
+    fundingEvidence: "Verus Wholesale, a trade name of Verus Residential Loanco, LLC, describes underwriting and funding its wholesale loans.",
+    coverage: "Program excludes AK, IL and NY, with county and CT/NJ overlays.",
+    sources: [{ label: "Funding entity", url: "https://verusmc.com/contact/" }],
+  },
+  nqm: {
+    role: "Direct lender", group: "Wholesale DSCR / Non-QM", access: "Wholesale / TPO",
+    fundingEvidence: "NQM Funding, LLC publishes the program and is listed by Freddie Mac as a participating wholesale lender.",
+    review: "A Reddit originator reported a generally smooth six-family rate-and-term refinance. A small companywide Birdeye profile had complaints about costs changing near closing.",
+    reviewSources: [{ label: "Reddit originator report", url: "https://www.reddit.com/r/loanoriginators/comments/1uy54ec/dscr_lender_love/" }, { label: "Birdeye", url: "https://reviews.birdeye.com/nqm-funding-llc-171807328035942" }],
+    sources: [{ label: "Participating lender listing", url: "https://sf.freddiemac.com/tools-learning/technology-tools/wholesaler" }],
+  },
+  "5th": {
+    role: "Direct lender", group: "Wholesale DSCR / Non-QM", access: "Wholesale / TPO",
+    fundingEvidence: "5th Street Capital publishes its own matrix and identifies itself as an independent, wholesale-only non-QM lender.",
+    coverage: "Program excludes NY and IL.",
+    sources: [{ label: "Wholesale broker approval", url: "https://www.5thstcap.com/broker-approval" }],
+  },
+  easy: {
+    role: "Direct lender", group: "Wholesale DSCR / Non-QM", access: "Commercial broker access",
+    fundingEvidence: "Easy Street describes a private lending and servicing operation, with a separate mortgage-broker program.",
+    sources: [{ label: "Mixed-use program details", url: "https://easystreetcap.com/dscr-loans-for-mixed-use-investment-properties/" }],
+  },
+  velocity: {
+    role: "Direct lender", group: "Wholesale DSCR / Non-QM", access: "Wholesale / TPO",
+    fundingEvidence: "Velocity’s November 2026 SEC filing describes origination and securitization of multifamily and mixed-use mortgages via brokers and direct borrowers.",
+    sources: [{ label: "SEC origination disclosure", url: "https://www.sec.gov/Archives/edgar/data/1692376/000119312526450404/vel-20260930.htm" }],
+  },
+};
+
+export const lenders: Lender[] = [
+  ...initialLenders.map((lender) => ({
+    ...lender,
+    ...originalEvidence[lender.id],
+    multifamilyRange: { min: 5, max: lender.multifamilyMax ?? undefined },
+    mixedRange: lender.mixedMax === null ? undefined : { min: 2, max: lender.mixedMax },
+    multifamily: lender.multifamily + " units",
+    mixed: lender.mixed + (lender.mixedMax === null ? "" : " units"),
+  })),
+  ...additions.map((listing): Lender => ({
+    id: listing.id,
+    name: listing.name,
+    initials: listing.name.split(/\s+/).slice(0, 2).map((word) => word[0]).join("").toUpperCase(),
+    channel: listing.group,
+    program: listing.sources[0].url,
+    role: listing.role,
+    group: listing.group,
+    access: listing.access,
+    accessDetails: listing.accessDetails,
+    fundingEvidence: listing.fundingEvidence,
+    coverage: listing.coverage,
+    multifamily: listing.multifamily,
+    multifamilyMax: listing.multifamilyRange?.max ?? null,
+    multifamilyRange: listing.multifamilyRange,
+    mixed: listing.mixedUse,
+    mixedMax: listing.mixedUseRange?.max ?? null,
+    mixedRange: listing.mixedUseRange,
+    minimumAmount: "",
+    loanSize: listing.loanSize,
+    fico: listing.fico ?? "",
+    dscr: listing.dscr ?? "",
+    price: listing.price ?? "",
+    priceType: listing.priceType,
+    overlays: listing.notes,
+    review: listing.review ?? "",
+    reviewSources: listing.reviewSources,
+    sources: listing.sources.slice(1),
+  })),
 ];
