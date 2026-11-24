@@ -5,6 +5,7 @@ import type { FormEvent, ReactNode } from "react";
 import { bffRateSheet, lenders, researchDate } from "./lenders";
 import type { Lender } from "./lenders";
 import { communityNotes, priceNotes } from "./research-data";
+import { newCommunityNotes, newPriceNotes } from "./research-expansion";
 import { accessTypes, fundingRoles, programGroups } from "./research-types";
 import type { UnitRange } from "./research-types";
 import { blankQuote } from "./quote";
@@ -59,7 +60,7 @@ function LenderDetails({ lender, onQuote }: { lender: Lender; onQuote: (lenderId
   </div>;
 }
 
-const filtersDefault = { search: "", group: "", role: "", access: "", property: "", units: "" };
+const filtersDefault = { search: "", group: "", role: "", access: "", property: "", units: "", added: "" };
 type DirectoryFilters = typeof filtersDefault;
 const roleGuide = [
   ["Direct lender", "Publishes its own lending program and describes direct origination or funding. A loan may be sold after closing."],
@@ -80,6 +81,7 @@ function Directory({ onQuote }: { onQuote: (lenderId: string) => void }) {
     if (filters.group && lender.group !== filters.group) return false;
     if (filters.role && lender.role !== filters.role) return false;
     if (filters.access && lender.access !== filters.access) return false;
+    if (filters.added && !lender.newListing) return false;
     const count = filters.units ? Number(filters.units) : null;
     const multifamily = !!lender.multifamily && (count === null || rangeMatches(count, lender.multifamilyRange));
     const mixed = !!lender.mixed && (count === null || rangeMatches(count, lender.mixedRange));
@@ -149,6 +151,9 @@ function Directory({ onQuote }: { onQuote: (lenderId: string) => void }) {
             <option value="">All types</option><option value="multifamily">Multifamily</option><option value="mixed">Mixed-use</option><option value="both">Both programs</option>
           </select></label>
           <label className="filter-field"><span>Units</span><input type="number" min="2" step="1" placeholder="Any" value={filters.units} onChange={(event) => updateFilter("units", event.target.value)} /></label>
+          <label className="filter-field"><span>Added</span><select value={filters.added} onChange={(event) => updateFilter("added", event.target.value)}>
+            <option value="">All dates</option><option value="new">New listings</option>
+          </select></label>
           <span className="result-count" aria-live="polite">{matches.length} of {lenders.length} listings</span>
           {filters.units && <span className="filter-note">Unit-count results require a published unit range or minimum. Check the listing for transaction-specific limits.</span>}
         </div>
@@ -186,7 +191,7 @@ function Directory({ onQuote }: { onQuote: (lenderId: string) => void }) {
     <section className="main-section" aria-labelledby="pricing-title">
       <div className="section-heading"><div><h2 id="pricing-title">Published pricing & recorded deals</h2><p>Rates below come with different loan sizes, terms and prepay structures. Use the quote tracker for matched scenarios.</p></div></div>
       <div className="evidence-grid">
-        {priceNotes.map((note) => <article key={note.name + note.rate} className="evidence-card">
+        {[...newPriceNotes, ...priceNotes].map((note) => <article key={note.name + note.rate} className="evidence-card">
           <h3>{note.name}</h3><strong className="evidence-rate">{note.rate}</strong><p>{note.terms}</p><External href={note.source.url}>{note.source.label}</External>
         </article>)}
       </div>
@@ -208,7 +213,7 @@ function Directory({ onQuote }: { onQuote: (lenderId: string) => void }) {
     <section className="main-section" aria-labelledby="community-title">
       <div className="section-heading"><div><h2 id="community-title">Forum and social evidence</h2><p>User-reported experiences and company announcements carry different weight.</p></div></div>
       <div className="evidence-grid">
-        {communityNotes.map((note) => <article key={note.title} className="evidence-card">
+        {[...newCommunityNotes, ...communityNotes].map((note) => <article key={note.title} className="evidence-card">
           <span className="evidence-kind">{note.kind}</span><h3>{note.title}</h3><p>{note.text}</p><External href={note.source.url}>{note.source.label}</External>
         </article>)}
       </div>

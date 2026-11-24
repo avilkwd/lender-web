@@ -1,8 +1,10 @@
 import { additions } from "./research-data";
+import { newListings } from "./research-expansion";
 import type { AccessType, EvidenceLink, FundingRole, ProgramGroup, UnitRange } from "./research-types";
 
 export type Lender = {
   id: string;
+  newListing?: boolean;
   name: string;
   initials: string;
   channel: string;
@@ -35,7 +37,7 @@ export type Lender = {
 
 const nyNj = "New York is excluded on this program. New Jersey requires 720 FICO and caps LTV at 70% on purchases and 65% on refinances.";
 
-export const researchDate = "November 23, 2026";
+export const researchDate = "November 24, 2026";
 export const bffRateSheet = "https://www.bffws.com/api/media/file/Non-QM%20Rate%20Sheet%2011232026.pdf";
 
 const initialLenders: Omit<Lender, "role" | "group" | "access" | "fundingEvidence">[] = [
@@ -209,6 +211,8 @@ const originalEvidence: Record<string, Pick<Lender, "role" | "group" | "access" 
   },
 };
 
+const newListingIds = new Set(newListings.map((listing) => listing.id));
+
 export const lenders: Lender[] = [
   ...initialLenders.map((lender) => ({
     ...lender,
@@ -218,7 +222,8 @@ export const lenders: Lender[] = [
     multifamily: lender.multifamily + " units",
     mixed: lender.mixed + (lender.mixedMax === null ? "" : " units"),
   })),
-  ...additions.map((listing): Lender => ({
+  ...[...additions, ...newListings].map((listing): Lender => ({
+    newListing: newListingIds.has(listing.id),
     id: listing.id,
     name: listing.name,
     initials: listing.name.split(/\s+/).slice(0, 2).map((word) => word[0]).join("").toUpperCase(),
