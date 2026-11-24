@@ -1,10 +1,12 @@
 import { additions } from "./research-data";
 import { newListings } from "./research-expansion";
+import { linkedinListings } from "./research-linkedin";
 import type { AccessType, EvidenceLink, FundingRole, ProgramGroup, UnitRange } from "./research-types";
 
 export type Lender = {
   id: string;
   newListing?: boolean;
+  linkedinListing?: boolean;
   name: string;
   initials: string;
   channel: string;
@@ -211,7 +213,9 @@ const originalEvidence: Record<string, Pick<Lender, "role" | "group" | "access" 
   },
 };
 
-const newListingIds = new Set(newListings.map((listing) => listing.id));
+const recentListings = [...newListings, ...linkedinListings];
+const newListingIds = new Set(recentListings.map((listing) => listing.id));
+const linkedinListingIds = new Set(linkedinListings.map((listing) => listing.id));
 
 export const lenders: Lender[] = [
   ...initialLenders.map((lender) => ({
@@ -222,8 +226,9 @@ export const lenders: Lender[] = [
     multifamily: lender.multifamily + " units",
     mixed: lender.mixed + (lender.mixedMax === null ? "" : " units"),
   })),
-  ...[...additions, ...newListings].map((listing): Lender => ({
+  ...[...additions, ...recentListings].map((listing): Lender => ({
     newListing: newListingIds.has(listing.id),
+    linkedinListing: linkedinListingIds.has(listing.id),
     id: listing.id,
     name: listing.name,
     initials: listing.name.split(/\s+/).slice(0, 2).map((word) => word[0]).join("").toUpperCase(),
